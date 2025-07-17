@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visualizador Temático SICAR</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom styles for Leaflet map and modal, overriding Tailwind where necessary */
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: 'Inter', sans-serif; /* Using Inter font */
+      overflow: hidden; /* Prevent body scroll */
+    }
+    #map {
+      height: calc(100vh - 64px); /* Adjust height for header */
+      width: 100%;
+      z-index: 0; /* Ensure map is behind other elements */
+    }
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .modal-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    .modal-content {
+      background-color: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      max-width: 90%;
+      max-height: 90%;
+      overflow-y: auto;
+      transform: translateY(-20px);
+      transition: transform 0.3s ease;
+    }
+    .modal-overlay.show .modal-content {
+      transform: translateY(0);
+    }
+    .leaflet-control-container .leaflet-control-attribution {
+      font-size: 0.75rem; /* Smaller attribution text */
+    }
+    .leaflet-control-layers {
+        border-radius: 0.75rem; /* Rounded corners for layer control */
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <header class="bg-green-700 text-white flex items-center justify-between p-4 shadow-md h-16">
+    <span class="text-xl font-bold flex items-center">
+      <span class="mr-2">🗂️</span> Visualizador de Temas SICAR
+    </span>
+    <div class="flex items-center space-x-4">
+      <button id="aboutAppBtn" class="bg-green-600 hover:bg-green-800 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">
+        Sobre o App
+      </button>
+      <a href="https://car.semas.pa.gov.br/#/consulta/geral?tela=BUSCAR_CADASTRO" target="_blank" class="text-white text-sm underline hover:no-underline font-normal">
+        SICAR
+      </a>
+    </div>
+  </header>
+
+  <div id="menu" class="absolute top-20 left-12 bg-white p-4 rounded-lg shadow-lg z-50">
+    <label class="block text-gray-700 font-semibold mb-2">Importar arquivo:</label>
+    <input type="file" id="upload" accept=".zip" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer" />
+    <p class="mt-2 text-xs text-gray-500">Shapefile zipado do SICAR</p>
+  </div>
+
+  <div id="exportMenu" class="absolute top-20 right-16 bg-white p-4 rounded-lg shadow-lg z-50 hidden">
+    <strong class="block text-gray-700 font-semibold mb-2">Exportar temas como:</strong>
+    <div class="flex space-x-2">
+      
+      <button id="exportGeojsonBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75">
+        GeoJSON
+      </button>
+      <button id="exportKmlBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75">
+        KML
+      </button>
+    </div>
+  </div>
+
+  <div id="camadasTemas" class="absolute bottom-4 left-4 bg-white p-4 rounded-lg shadow-lg max-h-80 overflow-y-auto text-sm z-50">
+    <strong class="block text-gray-700 font-semibold mb-2">Temas:</strong>
+    </div>
+
+  <div id="map" class="relative"></div>
+
+  <div id="aboutAppModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">Sobre o Aplicativo</h2>
+      <p class="text-gray-700 mb-4">
+        Este aplicativo permite visualizar e exportar temas de arquivos shapefile do SICAR (Sistema Nacional de Cadastro Ambiental Rural).
+      </p>
+      <p class="text-gray-700 mb-4">
+        Os arquivos por cadastro podem ser obtidos diretamente no site do SICAR:
+        <a href="https://car.semas.pa.gov.br/#/consulta/geral?tela=BUSCAR_CADASTRO" target="_blank" class="text-blue-600 hover:underline">
+          SICAR - Consulta Geral
+        </a>
+      </p>
+      <p class="text-gray-700 mb-6">
+        Desenvolvido por <a href="https://samuel-c-santos.github.io/" target="_blank" class="text-blue-600 hover:underline">Samuel Santos</a>.
+      </p>
+      <button id="closeModalBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">
+        Fechar
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Global variables for map and themes
+    let map;
+    const temasLayers = {}; // Object to store Leaflet layers for each theme
+
+    // Helper functions (moved to global scope for accessibility)
+
+    // Helper function to sanitize filenames by removing accents and special characters
+    function sanitizeFilename(filename) {
+      return filename
+        .normalize('NFD') // Decompose accented characters
+        .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
+        .replace(/[^a-zA-Z0-9_\-\.]/g, '_') // Replace non-alphanumeric chars with underscore
+        .replace(/_+/g, '_') // Replace multiple underscores with single
+        .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+    }
+
+    // Helper function to download a Blob
+    function downloadBlob(blob, filename) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }
+
+    // Helper function to escape XML special characters
+    function escapeXml(unsafe) {
+      return unsafe.replace(/[<>&'"]/g, function (c) {
+        switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+        }
+        return ''; // Should not happen
+      });
+    }
+
+    // Helper function to convert GeoJSON to KML
+    function tokml(geojson) {
+      let kml = '\uFEFF<?xml version="1.0" encoding="UTF-8"?>\n';
+      kml += '<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n';
+
+      geojson.features.forEach(f => {
+        let name = f.properties.tema || f.properties.nome || 'Sem tema';
+        // Sanitize filename for KML name, and then escape for XML
+        name = escapeXml(sanitizeFilename(name));
+
+        if (!f.geometry || !f.geometry.coordinates) {
+          return; // Skip features without geometry
+        }
+
+        let geometryKml = '';
+
+        // Handle different geometry types
+        if (f.geometry.type === 'Point') {
+          const coords = `${f.geometry.coordinates[0]},${f.geometry.coordinates[1]},0`;
+          geometryKml = `<Point><coordinates>${coords}</coordinates></Point>`;
+        } else if (f.geometry.type === 'LineString') {
+          const coords = f.geometry.coordinates.map(c => `${c[0]},${c[1]},0`).join(' ');
+          geometryKml = `<LineString><coordinates>${coords}</coordinates></LineString>`;
+        } else if (f.geometry.type === 'Polygon') {
+          // GeoJSON Polygon coordinates is an array of linear rings: [outerRing, innerRing1, innerRing2, ...]
+          const outerRingCoords = f.geometry.coordinates[0].map(c => `${c[0]},${c[1]},0`).join(' ');
+          let innerRingsKml = '';
+          if (f.geometry.coordinates.length > 1) {
+            for (let i = 1; i < f.geometry.coordinates.length; i++) {
+              const innerRingCoords = f.geometry.coordinates[i].map(c => `${c[0]},${c[1]},0`).join(' ');
+              innerRingsKml += `<innerBoundaryIs><LinearRing><coordinates>${innerRingCoords}</coordinates></LinearRing></innerBoundaryIs>\n`;
+            }
+          }
+          geometryKml = `<Polygon><outerBoundaryIs><LinearRing><coordinates>${outerRingCoords}</coordinates></LinearRing></outerBoundaryIs>${innerRingsKml}</Polygon>`;
+        } else if (f.geometry.type === 'MultiPoint') {
+            // MultiPoint in KML needs a <MultiGeometry> with multiple <Point>
+            const pointsKml = f.geometry.coordinates.map(c => `<Point><coordinates>${c[0]},${c[1]},0</coordinates></Point>`).join('\n');
+            geometryKml = `<MultiGeometry>${pointsKml}</MultiGeometry>`;
+        } else if (f.geometry.type === 'MultiLineString') {
+            // MultiLineString in KML needs a <MultiGeometry> with multiple <LineString>
+            const linesKml = f.geometry.coordinates.map(line => {
+                const coords = line.map(c => `${c[0]},${c[1]},0`).join(' ');
+                return `<LineString><coordinates>${coords}</coordinates></LineString>`;
+            }).join('\n');
+            geometryKml = `<MultiGeometry>${linesKml}</MultiGeometry>`;
+        } else if (f.geometry.type === 'MultiPolygon') {
+            // MultiPolygon in KML needs a <MultiGeometry> with multiple <Polygon>
+            const polygonsKml = f.geometry.coordinates.map(polygon => {
+                const outerRingCoords = polygon[0].map(c => `${c[0]},${c[1]},0`).join(' ');
+                let innerRingsKml = '';
+                if (polygon.length > 1) {
+                    for (let i = 1; i < polygon.length; i++) {
+                        const innerRingCoords = polygon[i].map(c => `${c[0]},${c[1]},0`).join(' ');
+                        innerRingsKml += `<innerBoundaryIs><LinearRing><coordinates>${innerRingCoords}</coordinates></LinearRing></innerBoundaryIs>\n`;
+                    }
+                }
+                return `<Polygon><outerBoundaryIs><LinearRing><coordinates>${outerRingCoords}</coordinates></LinearRing></outerBoundaryIs>${innerRingsKml}</Polygon>`;
+            }).join('\n');
+            geometryKml = `<MultiGeometry>${polygonsKml}</MultiGeometry>`;
+        }
+        // Note: GeometryCollection is more complex and less common,
+        // might not be supported directly by this simple tokml function.
+
+        if (geometryKml) {
+          kml += `<Placemark><name>${name}</name>${geometryKml}</Placemark>\n`;
+        }
+      });
+      kml += '</Document>\n</kml>';
+      return kml;
+    }
+
+    // Custom message box function (replaces alert)
+    function showMessageBox(title, message, type = "info") {
+        const existingMessageBox = document.getElementById('customMessageBox');
+        if (existingMessageBox) existingMessageBox.remove();
+
+        const messageBox = document.createElement('div');
+        messageBox.id = 'customMessageBox';
+        messageBox.className = 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-xl z-[1001] flex flex-col items-center max-w-sm w-full';
+
+        let titleColor = 'text-blue-700';
+        if (type === 'error') {
+            titleColor = 'text-red-700';
+        } else if (type === 'success') {
+            titleColor = 'text-green-700';
+        }
+
+        messageBox.innerHTML = `
+            <h3 class="text-xl font-bold mb-3 ${titleColor}">${title}</h3>
+            <p class="text-gray-700 text-center mb-5">${message}</p>
+            <button class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">
+                OK
+            </button>
+        `;
+        document.body.appendChild(messageBox);
+
+        messageBox.querySelector('button').addEventListener('click', () => {
+            messageBox.remove();
+        });
+
+        if (type !== 'error') {
+            setTimeout(() => {
+                if (messageBox.parentNode) messageBox.remove();
+            }, 5000);
+        }
+    }
+
+    // Function to export themes - now truly in global scope
+    async function exportTemas(format) {
+      const zip = new JSZip();
+      
+      // Removed the 'promises' array as shpwrite is no longer used.
+
+      Object.entries(temasLayers).forEach(([tema, layer]) => {
+        const geojson = layer.toGeoJSON();
+        const sanitizedTema = sanitizeFilename(tema); // Sanitize the filename
+
+        if (format === 'geojson') {
+          zip.file(`${sanitizedTema}.geojson`, JSON.stringify(geojson, null, 2));
+        } else if (format === 'kml') {
+          const kml = tokml(geojson); // tokml now includes BOM and sanitizes the name
+          zip.file(`${sanitizedTema}.kml`, kml);
+        }
+      });
+
+      try {
+        // No need for Promise.all(promises) anymore as shpwrite.zip is removed
+        const blob = await zip.generateAsync({ type: "blob" });
+        downloadBlob(blob, 'temas_exportados.zip');
+      } catch (error) {
+        console.error("Erro ao gerar o arquivo ZIP final:", error);
+        showMessageBox("Erro na Exportação", "Ocorreu um erro ao exportar os temas. Verifique o console para mais detalhes.", "error");
+      }
+    }
+
+    // Main application logic, ensuring DOM and core Leaflet are ready
+    window.onload = function() {
+      // Base layers for the map
+      const baseLayers = {
+        "Google Satélite": L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '&copy; Google' }),
+        "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
+        "CartoDB Voyager": L.tileLayer('https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; CARTO' }),
+        "Sentinel-2 2017": L.tileLayer.wms('https://tiles.maps.eox.at/wms', { layers: 's2cloudless-2017_3857', format: 'image/jpeg', attribution: '© EOX IT Services' }),
+        "Sentinel-2 2018": L.tileLayer.wms('https://tiles.maps.eox.at/wms', { layers: 's2cloudless-2018_3857', format: 'image/jpeg', attribution: '© EOX IT Services' }),
+        "Sentinel-2 2019": L.tileLayer.wms('https://tiles.maps.eox.at/wms', { layers: 's2cloudless-2019_3857', format: 'image/jpeg', attribution: '© EOX IT Services' }),
+        "Sentinel-2 2020": L.tileLayer.wms('https://tiles.maps.eox.at/wms', { layers: 's2cloudless-2020_3857', format: 'image/jpeg', attribution: '© EOX IT Services' }),
+        "Sentinel-2 2021": L.tileLayer.wms('https://tiles.maps.eox.at/wms', { layers: 's2cloudless-2021_3857', format: 'image/jpeg', attribution: '© EOX IT Services' }),
+        "Sentinel-2 2022": L.tileLayer.wms('https://tiles.maps.eox.at/wms', { layers: 's2cloudless-2022_3857', format: 'image/jpeg', attribution: '© EOX IT Services' }),
+        "Sentinel-2 2023": L.tileLayer.wms('https://tiles.maps.eox.at/wms', { layers: 's2cloudless-2023_3857', format: 'image/jpeg', attribution: '© EOX IT Services' }),
+        "Sentinel-2 2024": L.tileLayer.wms('https://tiles.maps.eox.at/wms', { layers: 's2cloudless-2024_3857', format: 'image/jpeg', attribution: '© EOX IT Services' }),
+        "Bing Maps": L.tileLayer('http://ecn.t3.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1', { attribution: '&copy; Bing Maps', maxZoom: 19 })
+      };
+
+      // Initialize the Leaflet map (assign to global map variable)
+      map = L.map('map', {
+        center: [-3.13, -60.02], // Default center for Amazon region
+        zoom: 6,
+        layers: [baseLayers["Sentinel-2 2024"]] // Default base layer
+      });
+      L.control.layers(baseLayers).addTo(map); // Add layer control to the map
+
+      // Get DOM elements
+      const uploadInput = document.getElementById('upload');
+      const exportMenu = document.getElementById('exportMenu');
+      const camadasTemasContainer = document.getElementById('camadasTemas');
+      const aboutAppBtn = document.getElementById('aboutAppBtn');
+      const aboutAppModal = document.getElementById('aboutAppModal');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+
+      // Get export buttons by their new IDs
+      
+      const exportGeojsonBtn = document.getElementById('exportGeojsonBtn');
+      const exportKmlBtn = document.getElementById('exportKmlBtn');
+
+      // Attach event listeners to export buttons
+      
+      exportGeojsonBtn.addEventListener('click', () => exportTemas('geojson'));
+      exportKmlBtn.addEventListener('click', () => exportTemas('kml'));
+
+      // Event listener for file upload
+      uploadInput.addEventListener('change', async event => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Clear existing layers and themes
+        Object.values(temasLayers).forEach(layer => map.removeLayer(layer));
+        for (const key in temasLayers) {
+          delete temasLayers[key];
+        }
+        camadasTemasContainer.innerHTML = '<strong class="block text-gray-700 font-semibold mb-2">Temas:</strong>';
+        exportMenu.classList.add('hidden'); // Hide export menu until data is loaded
+
+        try {
+          const arrayBuffer = await file.arrayBuffer(); // Read file as ArrayBuffer
+          const geojson = await shp(arrayBuffer, undefined, { encoding: 'latin1' });
+
+          const temas = {};
+          geojson.features.forEach(f => {
+            // Log properties to console for debugging
+            console.log("Feature properties:", f.properties);
+
+            // Prioritize 'tema', then 'name', otherwise 'Sem tema' for grouping
+            const tema = f.properties.tema || f.properties.nome || 'Sem tema';
+            if (!temas[tema]) temas[tema] = [];
+            temas[tema].push(f);
+          });
+
+          exportMenu.classList.remove('hidden'); // Show export menu
+          camadasTemasContainer.innerHTML = '<strong class="block text-gray-700 font-semibold mb-2">Temas:</strong>';
+
+          // Add each theme as a separate Leaflet layer
+          Object.entries(temas).forEach(([tema, features]) => {
+            const layer = L.geoJSON({ type: 'FeatureCollection', features }, {
+              onEachFeature: (feature, layer) => {
+                // Create popup with all feature properties
+                const props = Object.entries(feature.properties)
+                  .map(([k, v]) => `<strong class="text-green-700">${k}:</strong> <span class="text-gray-800">${v}</span>`)
+                  .join('<br>');
+                layer.bindPopup(`<div class="p-2 text-sm">${props}</div>`);
+              },
+              style: {
+                color: '#2E8B57', // Forest Green
+                weight: 2,
+                opacity: 0.7,
+                fillColor: '#66CDAA', // Medium Aquamarine
+                fillOpacity: 0.3
+              }
+            }).addTo(map); // Add layer to map by default
+            temasLayers[tema] = layer; // Store layer reference
+
+            // Create checkbox for layer visibility control
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.className = 'flex items-center mt-1';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = true;
+            checkbox.className = 'form-checkbox h-4 w-4 text-green-600 rounded focus:ring-green-500 cursor-pointer';
+            checkbox.id = `checkbox-${tema.replace(/\s/g, '-')}`; // Unique ID for checkbox
+            checkbox.onchange = () => {
+              if (checkbox.checked) map.addLayer(layer);
+              else map.removeLayer(layer);
+            };
+            const label = document.createElement('label');
+            label.htmlFor = `checkbox-${tema.replace(/\s/g, '-')}`;
+            label.className = 'ml-2 text-gray-700 cursor-pointer';
+            label.textContent = tema;
+
+            checkboxDiv.appendChild(checkbox);
+            checkboxDiv.appendChild(label);
+            camadasTemasContainer.appendChild(checkboxDiv);
+          });
+
+          // Fit map bounds to all loaded layers
+          const allBounds = Object.values(temasLayers).reduce((acc, layer) => acc.extend(layer.getBounds()), L.latLngBounds());
+          if (allBounds.isValid()) {
+            map.fitBounds(allBounds);
+          } else {
+            console.warn("No valid bounds found for loaded features. Map will not zoom to features.");
+          }
+
+        } catch (error) {
+          console.error("Erro ao carregar o shapefile:", error);
+          showMessageBox("Erro ao carregar o arquivo", "Não foi possível carregar o shapefile. Verifique se o arquivo é um ZIP válido contendo um shapefile.", "error");
+        }
+      });
+
+      // Modal functionality for "About App"
+      aboutAppBtn.addEventListener('click', () => {
+        aboutAppModal.classList.add('show');
+      });
+
+      closeModalBtn.addEventListener('click', () => {
+        aboutAppModal.classList.remove('show');
+      });
+
+      // Close modal if clicked outside content
+      aboutAppModal.addEventListener('click', (event) => {
+        if (event.target === aboutAppModal) {
+          aboutAppModal.classList.remove('show');
+        }
+      });
+    }; // End of window.onload
+  </script>
+</body>
+</html>
