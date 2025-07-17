@@ -12,7 +12,10 @@ Você pode acessar a versão online do aplicativo diretamente pelo GitHub Pages:
 
 Aqui está uma prévia do aplicativo em funcionamento:
 
-![Captura de Tela do Aplicativo](images/captura-de-tela.png)
+### Captura de Tela
+
+[![Visualizador Temático SICAR](https://github.com/samuel-c-santos/visualizador-tematico-sicar/blob/master/captura-de-tela.png?raw=true)](https://samuel-c-santos.github.io/visualizador-tematico-sicar/)
+
 
 ## Funcionalidades
 
