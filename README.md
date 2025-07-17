@@ -2,6 +2,18 @@
 
 Este aplicativo web permite a visualização e exportação de temas de arquivos Shapefile (.zip) do Sistema Nacional de Cadastro Ambiental Rural (SICAR). Desenvolvido para facilitar a análise de dados geográficos, o visualizador agora oferece opções de exportação para GeoJSON e KML, garantindo compatibilidade com diversos softwares SIG.
 
+## Acesso ao Aplicativo
+
+Você pode acessar a versão online do aplicativo diretamente pelo GitHub Pages:
+
+[https://samuel-c-santos.github.io/visualizador-tematico-sicar/](https://samuel-c-santos.github.io/visualizador-tematico-sicar/)
+
+## Captura de Tela
+
+Aqui está uma prévia do aplicativo em funcionamento:
+
+![Captura de Tela do Aplicativo](images/captura-de-tela.png)
+
 ## Funcionalidades
 
 * **Importação de Shapefile:** Carregue arquivos Shapefile compactados (.zip) provenientes do SICAR.
@@ -9,7 +21,6 @@ Este aplicativo web permite a visualização e exportação de temas de arquivos
 * **Exportação de Dados:** Exporte as camadas temáticas para:
     * **GeoJSON:** Formato padrão para dados geográficos na web, amplamente compatível.
     * **KML:** Formato keyhole markup language, adequado para visualização no Google Earth e outros SIGs. (Com correções de codificação para melhor compatibilidade com QGIS).
-* **Base de Mapas:** Alterne entre diferentes bases de mapas, incluindo imagens de satélite (Google Satélite, Bing Maps) e mapas de ruas (OpenStreetMap, CartoDB Voyager), além de camadas Sentinel-2 de vários anos.
 
 ## Problemas Resolvidos (Versão Atual)
 
@@ -25,7 +36,7 @@ Este aplicativo web permite a visualização e exportação de temas de arquivos
 4.  **Importe** um arquivo Shapefile zipado do SICAR utilizando o botão "Importar arquivo".
 5.  **Visualize** as camadas e utilize os botões de exportação para salvar os temas em GeoJSON ou KML.
 
-## Acesso ao SICAR
+## Acesso ao SICAR (Fonte de Dados)
 
 Você pode obter os arquivos por cadastro diretamente no site do SICAR:
 [SICAR - Consulta Geral](https://car.semas.pa.gov.br/#/consulta/geral?tela=BUSCAR_CADASTRO)
