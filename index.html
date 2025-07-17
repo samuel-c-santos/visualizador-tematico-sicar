@@ -64,7 +64,64 @@
         border-radius: 0.75rem; /* Rounded corners for layer control */
     }
   </style>
-</head>
+</head><style>
+  /* Custom styles for Leaflet map and modal, overriding Tailwind where necessary */
+  html, body {
+    margin: 0;
+    height: 100%;
+    font-family: 'Inter', sans-serif; /* Using Inter font */
+    overflow: hidden; /* Prevent body scroll */
+  }
+  #map {
+    height: calc(100vh - 64px); /* Adjust height for header */
+    width: 100%;
+    z-index: 0; /* Ensure map is behind other elements */
+  }
+  /* Modal styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+  }
+  .modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+  }
+  .modal-content {
+    background-color: white;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    max-width: 90%;
+    max-height: 90%;
+    overflow-y: auto;
+    transform: translateY(-20px);
+    transition: transform 0.3s ease;
+  }
+  .modal-overlay.show .modal-content {
+    transform: translateY(0);
+  }
+  .leaflet-control-container .leaflet-control-attribution {
+    font-size: 0.75rem; /* Smaller attribution text */
+  }
+  .leaflet-control-layers {
+      border-radius: 0.75rem; /* Rounded corners for layer control */
+  }
+  /* Ajuste para o menu de exportação */
+  #exportMenu {
+    right: 150px; /* Movido mais 2cm (~70px) para a esquerda */
+  }
+</style>
 <body class="bg-gray-100">
   <header class="bg-green-700 text-white flex items-center justify-between p-4 shadow-md h-16">
     <span class="text-xl font-bold flex items-center">
